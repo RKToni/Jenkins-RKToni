@@ -19,37 +19,22 @@ pipeline {
         stage('Deploying') {
             steps {
                 script {
-                    sh '''
-                    docker rm -f jenkins
-                    docker build -t $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG .
-                    docker run -d -p 8000:8000 --name jenkins $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG
-                    '''
+                    deployDocker()
                 }
             }
         }
         stage('User Acceptance') {
             steps {
-                input {
-                    message 'Proceed to push to main'
-                    ok 'Yes'
-                }
+                input message: 'Proceed to push to main', ok: 'Yes'
             }
         }
         stage('Pushing and Merging') {
-            parallel {
-                stage('Pushing Image') {
-                    environment {
-                        DOCKERHUB_CREDENTIALS = credentials('docker_jenkins')
-                    }
-                    steps {
-                        sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                        sh 'docker push $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG'
-                    }
-                }
-                stage('Merging') {
-                    steps {
-                        echo 'Merging done'
-                    }
+            steps {
+                script {
+                    parallel(
+                        "Pushing Image": { pushDockerImage() },
+                        "Merging": { mergeChanges() }
+                    )
                 }
             }
         }
@@ -59,4 +44,23 @@ pipeline {
             sh 'docker logout'
         }
     }
+}
+
+void deployDocker() {
+    sh '''
+    docker ps -a --format '{{.Names}}' | grep -w jenkins && docker rm -f jenkins || true
+    docker build -t $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG .
+    docker run -d -p 8000:8000 --name jenkins $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG
+    '''
+}
+
+void pushDockerImage() {
+    withEnv(['DOCKERHUB_CREDENTIALS']) {
+        sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+        sh 'docker push $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG'
+    }
+}
+
+void mergeChanges() {
+    echo 'Merging done'
 }
