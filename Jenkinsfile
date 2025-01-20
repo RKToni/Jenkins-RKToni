@@ -4,7 +4,7 @@ pipeline {
         DOCKER_ID = 'dstdockerhub'
         DOCKER_IMAGE = 'datascientestapi'
         DOCKER_TAG = "v.${BUILD_ID}.0"
-        DOCKERHUB_CREDENTIALS = credentials('DOCKER_HUB_PASS')
+        DOCKERHUB_CREDENTIALS = credentials('DOCKER_HUB_PASS') // Assurez-vous que l'ID est correct
     }
     stages {
         stage('Setup Python') {
@@ -63,14 +63,16 @@ void deployDocker() {
     sh '''
     docker ps -a --format '{{.Names}}' | grep -w jenkins && docker rm -f jenkins || true
     docker build -t $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG .
-    docker run -d -p 8000:8000 --name jenkins $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG
+    docker run -d -p 8000:8000 --name jenkins $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG || (echo "Docker run failed!" && exit 1)
     '''
 }
 
 void pushDockerImage() {
-    withEnv(['DOCKERHUB_CREDENTIALS']) {
-        sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-        sh 'docker push $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG'
+    withCredentials([usernamePassword(credentialsId: 'DOCKER_HUB_PASS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+        sh '''
+        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+        docker push $DOCKER_ID/$DOCKER_IMAGE:$DOCKER_TAG
+        '''
     }
 }
 
