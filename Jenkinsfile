@@ -4,6 +4,7 @@ pipeline {
         DOCKER_ID = 'dstdockerhub'
         DOCKER_IMAGE = 'datascientestapi'
         DOCKER_TAG = "v.${BUILD_ID}.0"
+        DOCKERHUB_CREDENTIALS = credentials('DOCKER_HUB_PASS')
     }
     stages {
         stage('Setup Python') {
